@@ -815,9 +815,10 @@ local function get_time_codes_width()
         return base .. (state.tc_ms and ".888" or "")
     end
 
+    local frame_placeholder = " (F 888888 / 888888)"
     local prefix = state.tc_left_rem and (user_opts.unicodeminus and UNICODE_MINUS or "-") or ""
-    local w = estimate_text_width(prefix .. time_fmt(rt_sec) .. " / " .. time_fmt(dur), osc_styles.time)
-    return w ~= 0 and w or 120 + (state.tc_ms and 40 or 0)
+    local w = estimate_text_width(prefix .. time_fmt(rt_sec) .. " / " .. time_fmt(dur) .. frame_placeholder, osc_styles.time)
+    return w ~= 0 and w or 120 + (state.tc_ms and 40 or 0) + 120
 end
 
 -- returns hitbox spanning coordinates (top left, bottom right corner)
@@ -3610,7 +3611,17 @@ local function osc_init()
             end
         end
 
-        return prefix .. format_time(playtime_remaining) .. " / " .. format_time(state.duration)
+        -- current / total frame number (estimated; 1-based)
+        local frame_no = mp.get_property_number("estimated-frame-number", -1)
+        local frame_count = mp.get_property_number("estimated-frame-count", -1)
+        local frame_str = ""
+        if frame_no >= 0 then
+            frame_str = frame_count >= 0
+                and string.format(" (F %d / %d)", frame_no + 1, frame_count)
+                or string.format(" (F %d)", frame_no + 1)
+        end
+
+        return prefix .. format_time(playtime_remaining) .. " / " .. format_time(state.duration) .. frame_str
     end
     ne.eventresponder["mbtn_left_up"] = function()
         state.tc_left_rem = not state.tc_left_rem
