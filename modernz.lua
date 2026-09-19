@@ -815,10 +815,30 @@ local function get_time_codes_width()
         return base .. (state.tc_ms and ".888" or "")
     end
 
-    local frame_placeholder = " (F 888888 / 888888)"
     local prefix = state.tc_left_rem and (user_opts.unicodeminus and UNICODE_MINUS or "-") or ""
-    local w = estimate_text_width(prefix .. time_fmt(rt_sec) .. " / " .. time_fmt(dur) .. frame_placeholder, osc_styles.time)
-    return w ~= 0 and w or 120 + (state.tc_ms and 40 or 0) + 120
+    local w = estimate_text_width(prefix .. time_fmt(rt_sec) .. " / " .. time_fmt(dur), osc_styles.time)
+    return (w ~= 0 and w or 120 + (state.tc_ms and 40 or 0)) + 120
+end
+
+-- Hal: current/total frame shown as "seconds+frame" (e.g. "1+12")
+local function frame_osd_text()
+    local fps = mp.get_property_number("container-fps", 0)
+    if fps <= 0 then fps = mp.get_property_number("estimated-vf-fps", 0) end
+    if fps <= 0 then return "" end
+
+    local function sec_frame(k) -- k: 1-based frame ordinal
+        if k < 1 then return nil end
+        local sec = math.floor(k / fps)
+        local frame = math.floor(k % fps + 0.5)
+        return string.format("%d+%d", sec, frame)
+    end
+
+    local frame_no = mp.get_property_number("estimated-frame-number", -1)
+    local frame_count = mp.get_property_number("estimated-frame-count", -1)
+    local cur_sf = frame_no >= 0 and sec_frame(frame_no + 1) or nil
+    if not cur_sf then return "" end
+    local total_sf = frame_count >= 1 and sec_frame(frame_count) or nil
+    return total_sf and string.format(" (%s / %s)", cur_sf, total_sf) or string.format(" (%s)", cur_sf)
 end
 
 -- returns hitbox spanning coordinates (top left, bottom right corner)
@@ -3611,17 +3631,7 @@ local function osc_init()
             end
         end
 
-        -- current / total frame number (estimated; 1-based)
-        local frame_no = mp.get_property_number("estimated-frame-number", -1)
-        local frame_count = mp.get_property_number("estimated-frame-count", -1)
-        local frame_str = ""
-        if frame_no >= 0 then
-            frame_str = frame_count >= 0
-                and string.format(" (F %d / %d)", frame_no + 1, frame_count)
-                or string.format(" (F %d)", frame_no + 1)
-        end
-
-        return prefix .. format_time(playtime_remaining) .. " / " .. format_time(state.duration) .. frame_str
+        return prefix .. format_time(playtime_remaining) .. " / " .. format_time(state.duration) .. frame_osd_text()
     end
     ne.eventresponder["mbtn_left_up"] = function()
         state.tc_left_rem = not state.tc_left_rem
